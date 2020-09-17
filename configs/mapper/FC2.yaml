@@ -1,0 +1,47 @@
+architecture:
+  subtree:
+  - attributes: {technology: 40nm}
+    local:
+    - attributes: {block-size: 2, word_width: 32}
+      class: DRAM
+      name: DRAM
+    - attributes: {depth: 16384, meshX: 1, n_banks: 16, n_words: 2, width: 64, word_width: 32}
+      class: SRAM
+      name: GlobalBuffer
+    name: eyeriss
+    subtree:
+    - local:
+      - attributes: {depth: 256, meshX: 16, width: 32, word_width: 32}
+        class: regfile
+        name: RegFile
+      - attributes: {datawidth: 32, meshX: 16}
+        class: fpmac
+        name: MACs
+      name: PE[0..255]
+  version: 0.2
+mapper:
+  algorithm: random-pruned
+  # num-threads: 1
+  layer-name: FC2
+  model-name: vgg
+  optimization-metrics: [sparse-edp]
+  search-size: 0
+  timeout: 0
+  victory-condition: 500
+mapspace:
+  constraints:
+  - keep: [Weights, Inputs, Outputs]
+    target: RegFile
+    type: datatype
+  - keep: [Weights, Inputs, Outputs]
+    target: GlobalBuffer
+    type: datatype
+  - keep: [Weights, Inputs, Outputs]
+    target: DRAM
+    type: datatype
+  - {factors: R3 S3, permutation: RSPQCKN, target: RegFile, type: temporal}
+  - {factors: R1 S1 P1 Q1 C16 K16 N1, permutation: CQNRSPK, split: 3, target: GlobalBuffer,
+    type: spatial}
+  - {factors: R1 S1, target: GlobalBuffer, type: temporal}
+problem: {C: 512, Hdilation: 1, Hstride: 1, K: 10, N: 16, P: 1, Q: 1, R: 1, S: 1,
+  Wdilation: 1, Wstride: 1, shape: cnn-layer}

@@ -1,0 +1,144 @@
+# Copyright (c) 2018, NVIDIA CORPORATION. All rights reserved.
+# 
+# Redistribution and use in source and binary forms, with or without
+# modification, are permitted provided that the following conditions
+# are met:
+#  * Redistributions of source code must retain the above copyright
+#    notice, this list of conditions and the following disclaimer.
+#  * Redistributions in binary form must reproduce the above copyright
+#    notice, this list of conditions and the following disclaimer in the
+#    documentation and/or other materials provided with the distribution.
+#  * Neither the name of NVIDIA CORPORATION nor the names of its
+#    contributors may be used to endorse or promote products derived
+#    from this software without specific prior written permission.
+# 
+# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
+# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+# PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+# CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+# EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+# PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+# PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+# OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+mapspace:
+  constraints:
+  # Datatype Bypass
+  - type: datatype
+    target: RegFile
+    keep:
+    - Weights
+    - Inputs
+    - Outputs
+  - type: datatype
+    target: GlobalBuffer
+    keep:
+    - Weights
+    - Inputs
+    - Outputs
+  - type: datatype
+    target: DRAM
+    keep:
+    - Weights
+    - Inputs
+    - Outputs
+  # Temporal
+  - target: RegFile
+    type: temporal
+    factors: R0 S0 # P0 Q0
+    permutation: RSPQCN
+  
+  # Spatial
+  - target: GlobalBuffer
+    type: spatial
+    factors: R1 S1 P1 Q1 C16 N16 
+    # factors: R1 S1 P14 Q14 C1 N1 
+    permutation: NQRSPC
+    split: 3
+  
+  - target: GlobalBuffer
+    type: temporal
+    # permutation: QRSCPNK
+    # factors: R1 S1
+  # - permutation: RSP CKNQ
+  #   type: temporal
+  #   target: DRAM
+  #   factors: R1 S1 P1
+  # constraints: rowstationary
+mapper:
+  algorithm: random-pruned
+  optimization-metrics:
+  - sparse-edp
+  search-size: 0
+  # sync_interval: 100
+  # num-threads: 1 
+  num-threads: 4 
+  victory-condition: 100
+  timeout: 5000000
+  model-name: fake_mobile
+  layer-name: fake_depthwise
+  mask-synthetic: # with "mask-synthetic" list non empty, we generate synthetic bernoulli masks
+    target-sparsity: 0.1
+    # synthetic-mask-path: test2 # with "synthetic-mask-path" specified, we do save the generate mask for reproducibility
+problem:
+  shape: cnn-layer-depthwise.yaml
+  R: 3
+  S: 3
+  P: 28
+  Q: 28
+  C: 512
+  # K: 512
+  N: 16
+  Hstride: 1
+  Wstride: 1
+  Hdilation: 1
+  Wdilation: 1
+  # Inputs = 0.5
+  # Outpus = 0.5
+
+architecture:
+  # ============================================================
+  # Architecture Description
+  # ============================================================
+  version: 0.2
+  subtree:
+    - name: eyeriss
+      attributes:
+        technology: 40nm
+      local:
+        - name: DRAM
+          class: DRAM
+          attributes:
+            block-size: 2
+            word_width: 32
+        - name: GlobalBuffer
+          # class: smartbuffer_SRAM
+          class: SRAM
+          attributes:
+            word_width: 32
+            n_words: 2
+            n_banks: 16
+            width: 64
+            depth: 16384
+            meshX: 1
+      subtree:
+      - name: PE[0..255]
+        local:
+          - name: RegFile
+            class: regfile
+            attributes:
+              depth: 256
+              width: 32
+              # block-size: 1
+              word_width: 32
+              meshX: 16
+              # read_bandwidth: 12
+              # write_bandwidth: 12
+          - name: MACs
+            class: fpmac
+            attributes:
+              datawidth: 32 
+              meshX: 16
